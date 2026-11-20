@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+# Data (persistent volume, never committed)
+data/
+*.db
+*.db-wal
+*.db-shm
+# Node
+node_modules/
+frontend/dist/
+# Secrets
+.env
+.claude/settings.local.json
