@@ -71,7 +71,7 @@ def sync_game(db: Database, game: Game, trigger: str = "manual", client=None) ->
                 rejected.append(f"{raw.get('id')}: {exc}")
                 continue
             new += db.insert_draw(parsed)
-        msg = f"{new} nouveau(x) tirage(s)"
+        msg = "Aucun nouveau tirage" if new == 0 else (f"{new} nouveaux tirages" if new > 1 else "1 nouveau tirage")
         if rejected:
             msg += f"; {len(rejected)} rejeté(s): " + "; ".join(rejected[:5])
             log.warning("Rejected draws for %s: %s", game.key, rejected)
@@ -136,7 +136,7 @@ def maybe_verify_xlsx(db: Database, game: Game, force: bool = False, client=None
             if not ok:
                 mismatches.append(row["draw_id"])
         db.set_verification(game.key, results)
-        msg = f"{sum(results.values())} tirage(s) confirmé(s) par {url.rsplit('/', 1)[-1]}"
+        msg = f"{sum(results.values())} tirages confirmés par {url.rsplit('/', 1)[-1]}"
         if mismatches:
             msg += f"; DIVERGENCES: {mismatches[:10]}"
         db.finish_sync(sync_id, "ok", 0, msg)

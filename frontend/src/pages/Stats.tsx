@@ -26,7 +26,7 @@ function FrequencyChart({ rows, expected, metric, label }: { rows: FreqRow[]; ex
       <ResponsiveContainer>
         <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
           <CartesianGrid vertical={false} stroke={c.grid} />
-          <XAxis dataKey="n" {...axisProps(c)} interval={data.length > 30 ? 1 : 0} />
+          <XAxis dataKey="n" {...axisProps(c)} ticks={data.length > 15 ? data.map((d) => d.n).filter((n) => n === 1 || n % 5 === 0) : undefined} interval={0} />
           <YAxis {...axisProps(c)} allowDecimals={false} />
           <Tooltip cursor={{ fill: c.grid, opacity: 0.4 }}
             formatter={(v: number) => [metric === "ewma" ? `${fmtNum(v)} %` : v, metric === "count" ? "Sorties" : metric === "gap" ? "Tirages d'absence" : "Taux pondéré"]}
@@ -66,7 +66,7 @@ function Evolution({ st }: { st: StatsT }) {
             <button key={r.number} onClick={() => toggle(r.number)} aria-pressed={idx >= 0}
               className={cx("h-9 w-9 rounded-full text-xs font-semibold tabular ring-1 ring-inset transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                 idx >= 0 ? "text-white ring-transparent" : "bg-surface-2 text-muted ring-border hover:text-fg")}
-              style={idx >= 0 ? { background: c.series[idx % c.series.length] } : undefined}>
+              style={idx >= 0 ? { background: c.series[idx % c.series.length], color: c.dark ? "#0b0d12" : "#fff" } : undefined}>
               {r.number}
             </button>
           );
@@ -144,7 +144,7 @@ function FreqTable({ rows }: { rows: FreqRow[] }) {
         <thead>
           <tr className="text-left text-xs text-muted">
             {cols.map((c) => (
-              <th key={c.k} className="py-2 pr-3 font-medium" aria-sort={sort.k === c.k ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
+              <th key={c.k} className={cx("py-2 pr-3 font-medium", c.k === "number" && "sticky left-0 z-[1] bg-surface")} aria-sort={sort.k === c.k ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
                 <button className="inline-flex min-h-[32px] items-center gap-1 hover:text-fg" title={c.title}
                   onClick={() => setSort({ k: c.k, dir: sort.k === c.k ? (sort.dir === 1 ? -1 : 1) : -1 })}>
                   {c.label}{sort.k === c.k && (sort.dir === 1 ? <ArrowUp className="h-3 w-3" aria-hidden /> : <ArrowDown className="h-3 w-3" aria-hidden />)}
@@ -156,7 +156,7 @@ function FreqTable({ rows }: { rows: FreqRow[] }) {
         <tbody>
           {sorted.map((r) => (
             <tr key={r.number} className="border-t border-border">
-              <td className="py-1.5 pr-3"><Ball n={r.number} size="sm" /></td>
+              <td className="sticky left-0 z-[1] bg-surface py-1.5 pr-3"><Ball n={r.number} size="sm" /></td>
               <td className="pr-3 font-medium">{r.count}</td>
               <td className={cx("pr-3", Math.abs(r.z) >= 2 ? "font-semibold text-warn" : "text-muted")}>{r.z > 0 ? "+" : ""}{fmtNum(r.z)}</td>
               <td className="pr-3">{r.count_30}</td><td className="pr-3">{r.count_60}</td><td className="pr-3">{r.count_90}</td>
@@ -238,6 +238,7 @@ export default function Stats() {
               action={<Segmented size="sm" label="Indicateur" value={metric} onChange={setMetric}
                 options={[{ value: "count", label: "Sorties" }, { value: "gap", label: "Retard" }, { value: "ewma", label: "Pondéré" }]} />} />
             <FrequencyChart rows={d.frequencies} expected={d.frequencies[0].expected} metric={metric} label="Histogramme des fréquences par numéro" />
+            {metric === "count" && <p className="mt-2 text-xs text-muted">Barres foncées : au-dessus de l'attendu de plus d'un écart-type · claires : en dessous. Un écart inférieur à 2 écarts-types (|z| &lt; 2) est une variation normale du hasard.</p>}
           </Card>
 
           <Evolution key={`${game}-${win}`} st={d} />

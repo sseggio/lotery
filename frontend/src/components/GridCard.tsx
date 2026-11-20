@@ -4,6 +4,8 @@ import { Grid } from "../lib/api";
 import { fmtNum, fmtPct } from "../lib/format";
 import { Balls, Card, cx, ScoreBar } from "./ui";
 
+const plural = (n: number, w: string) => `${n} ${w}${n > 1 ? "s" : ""}`;
+
 const SLOT_TONES = ["from-indigo-500/15", "from-emerald-500/15", "from-amber-500/15", "from-rose-500/15"];
 
 export function GridCard({ grid, onRegenerate, onFavorite, busy, compact = false }: {
@@ -49,21 +51,21 @@ export function GridCard({ grid, onRegenerate, onFavorite, busy, compact = false
         <Balls key={grid.id} numbers={grid.numbers} extras={grid.extras} size={compact ? "md" : "lg"} label={`Grille ${grid.slot}`} />
       </div>
 
-      <div className="relative mt-4 grid grid-cols-3 gap-3 px-4 sm:gap-4 sm:px-5">
+      <div className="relative mt-4 grid grid-cols-1 gap-2.5 px-4 sm:grid-cols-3 sm:gap-4 sm:px-5">
         <ScoreBar label="Statistique" value={grid.stat_score} hint="Adéquation aux tendances historiques (percentile vs grilles aléatoires). N'augmente pas la probabilité de gain." />
-        <ScoreBar label="Anti-partage" value={grid.anti_score} tone="good" hint="Estimation : part des grilles aléatoires jugées plus populaires que celle-ci." />
-        <ScoreBar label="Global" value={grid.global_score} tone="star" hint="Combinaison des deux scores selon votre réglage." />
+        <ScoreBar label="Anti-partage (estim.)" value={grid.anti_score} tone="good" hint="Estimation : part des grilles aléatoires jugées plus populaires que celle-ci." />
+        <ScoreBar label="Combiné" value={grid.global_score} tone="neutral" hint="Combinaison des deux scores selon votre réglage." />
       </div>
 
       <div className="relative mt-4 flex flex-wrap gap-1.5 px-4 sm:px-5">
-        <span className="chip" title="Popularité estimée auprès des autres joueurs (1 = grille moyenne)">
-          Popularité ×{fmtNum(pop.relative_popularity)}
+        <span className="chip">
+          Jouée ≈ ×{fmtNum(pop.relative_popularity)} vs grille moyenne
         </span>
-        <span className="chip" title="Part du jackpot conservée en moyenne si cette grille gagne (modèle), comparée à une grille moyenne">
-          Gain si jackpot {pop.gain_vs_average_pct >= 0 ? "+" : ""}{fmtPct(pop.gain_vs_average_pct, 0)}
+        <span className="chip border-good/30 text-good">
+          ≈ {pop.gain_vs_average_pct >= 0 ? "+" : ""}{fmtPct(pop.gain_vs_average_pct, 0)} de jackpot si gain
         </span>
-        <span className="chip">Σ {d.structure.sum}</span>
-        <span className="chip">{d.structure.odd} impairs · {d.structure.even} pairs</span>
+        <span className="chip">Somme {d.structure.sum}</span>
+        <span className="chip">{plural(d.structure.odd, "impair")} · {plural(d.structure.even, "pair")}</span>
       </div>
 
       <div className="relative mt-auto px-2 pb-2 pt-3">

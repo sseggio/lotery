@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays, Database, Flame, Sigma, Sparkles, Snowflake, Timer } from "lucide-react";
+import { ArrowRight, CalendarDays, Flame, Sigma, Sparkles, Snowflake, Timer } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { BalanceControl } from "../components/BalanceControl";
@@ -7,7 +7,7 @@ import { SyncButton } from "../components/Layout";
 import { Ball, Balls, Card, ErrorState, Kpi, Notice, SectionTitle, Skeleton, useNow } from "../components/ui";
 import { api, FreqRow, Generation } from "../lib/api";
 import { useApp } from "../lib/app-context";
-import { fmtDate, fmtDateTime, fmtInt, fmtP, fmtRelative } from "../lib/format";
+import { fmtDate, fmtDateTime, fmtInt, fmtNum, fmtP, fmtRelative } from "../lib/format";
 import { useAsync } from "../lib/hooks";
 
 function NumberList({ title, rows, icon, value }: { title: string; rows?: FreqRow[]; icon: React.ReactNode; value: (r: FreqRow) => string }) {
@@ -33,6 +33,7 @@ export default function Home() {
   const { game, info, balance, dataVersion } = useApp();
   const summary = useAsync(() => api.summary(game), [game, dataVersion]);
   const latest = useAsync(() => api.latest(game), [game]);
+  const bt = useAsync(() => api.backtest(game, 100, 10, 0.5), [game]);
   const [gen, setGen] = useState<Generation | null>(null);
   const [busy, setBusy] = useState<number | "all" | null>(null);
   const [err, setErr] = useState<string>();
@@ -79,20 +80,26 @@ export default function Home() {
   }, [balance]);
 
   const s = summary.data;
+  const proof = (() => {
+    const r = bt.data?.results;
+    if (!r) return null;
+    const rnd = r.find((x) => x.strategy === "aleatoire");
+    const ours = r.filter((x) => ["frequence", "tendance", "hybride", "anti_partage"].includes(x.strategy));
+    const anti = r.find((x) => x.strategy === "anti_partage");
+    if (!rnd || !ours.length || !anti) return null;
+    return {
+      n: bt.data!.n_test_draws, random: rnd.mean_hits, theory: bt.data!.theoretical_mean_hits,
+      ours: ours.reduce((a, x) => a + x.mean_hits, 0) / ours.length,
+      share: (anti.mean_expected_jackpot_share / rnd.mean_expected_jackpot_share - 1) * 100,
+    };
+  })();
   const newerDraws = gen && s?.last_draw && s.last_draw.draw_id > gen.last_draw_id;
   const odds = info ? fmtInt(info.n_combinations) : "…";
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{info?.label ?? "…"} · Tableau de bord</h1>
-          <p className="mt-1 text-sm text-muted">
-            Dernier tirage pris en compte : <strong className="font-medium text-fg">{fmtDate(s?.last_draw?.date)}</strong>
-            {" · "}synchronisé {fmtRelative(s?.sync.last_success_at)}
-          </p>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{info?.label ?? "…"} · Tableau de bord</h1>
       </div>
 
       {summary.error && <ErrorState message={summary.error} onRetry={summary.reload} />}
@@ -110,38 +117,26 @@ export default function Home() {
         </Card>
       )}
 
-      {/* Last draw + KPIs */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="relative overflow-hidden p-5 lg:col-span-2">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-accent/10 blur-3xl" aria-hidden />
-          <div className="flex items-center justify-between">
-            <span className="label">Dernier tirage officiel</span>
-            {s?.last_draw?.verified && (
-              <span className="chip border-good/30 text-good" title="Confirmé par deux publications officielles (API + fichier de statistiques)">Vérifié ×2</span>
-            )}
+      {/* Last draw: compact banner */}
+      <Card className="relative overflow-hidden p-4 sm:p-5">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-accent/10 blur-3xl" aria-hidden />
+        {!s ? <Skeleton className="h-12" /> : s.last_draw && (
+          <div className="relative flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
+            <div className="shrink-0 md:w-56">
+              <div className="label">Dernier tirage pris en compte</div>
+              <div className="mt-1 text-sm font-medium">{fmtDate(s.last_draw.date)}</div>
+              <div className="text-xs text-muted">tirage n° {s.last_draw.draw_id}</div>
+            </div>
+            <div className="flex-1"><Balls numbers={s.last_draw.numbers} extras={s.last_draw.extras} bonus={s.last_draw.bonus} size="md" label="Dernier tirage" /></div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted md:flex-col md:items-end">
+              {s.last_draw.verified
+                ? <span className="chip border-good/30 text-good">Vérifié par 2 sources officielles</span>
+                : <span className="chip">Source : API officielle</span>}
+              <span className="inline-flex items-center gap-1.5"><Timer className="h-3.5 w-3.5" aria-hidden />Synchronisé {fmtRelative(s.sync.last_success_at)}</span>
+            </div>
           </div>
-          {!s ? <Skeleton className="mt-4 h-14" /> : s.last_draw && (
-            <>
-              <div className="mt-1 text-sm text-muted">{fmtDate(s.last_draw.date)} · tirage n° {s.last_draw.draw_id}</div>
-              <div className="mt-4">
-                <Balls numbers={s.last_draw.numbers} extras={s.last_draw.extras} bonus={s.last_draw.bonus} size="lg" label="Dernier tirage" />
-              </div>
-            </>
-          )}
-          <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted">
-            <span className="inline-flex items-center gap-1.5"><Timer className="h-3.5 w-3.5" aria-hidden />Dernière synchro : {fmtDateTime(s?.sync.last_success_at)}</span>
-            <span className="inline-flex items-center gap-1.5"><Database className="h-3.5 w-3.5" aria-hidden />Source : API officielle Loterie Nationale</span>
-          </div>
-        </Card>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-1">
-          <Kpi label="Tirages analysés" icon={<CalendarDays className="h-4 w-4" />}
-            value={s?.year_draws != null ? fmtInt(s.year_draws) : "—"}
-            sub={s?.history_draws ? <>année en cours · {fmtInt(s.history_draws)} en historique</> : "année en cours"} />
-          <Kpi label="Test d'uniformité" icon={<Sigma className="h-4 w-4" />}
-            value={s?.chi_square ? `p = ${fmtP(s.chi_square.p_value)}` : "—"}
-            sub={s?.chi_square ? (s.chi_square.p_value > 0.05 ? "Fréquences compatibles avec le hasard" : "Écart notable (à confirmer sur plus de tirages)") : " "} />
-        </div>
-      </div>
+        )}
+      </Card>
 
       {/* Grids */}
       <section aria-labelledby="grids-title">
@@ -164,6 +159,10 @@ export default function Home() {
           <div className="mb-4"><Notice>De nouveaux tirages sont disponibles depuis le calcul de ces grilles. <button className="font-medium text-accent underline underline-offset-2" onClick={() => generateAll()}>Recalculer maintenant</button></Notice></div>
         )}
         {err && <div className="mb-4"><ErrorState message={err} /></div>}
+        <p className="mb-3 text-xs leading-relaxed text-muted">
+          Scores = rang face à des milliers de grilles aléatoires (<strong className="font-medium text-fg">50 = grille moyenne</strong>, repère central des barres).
+          Ils ne changent pas la probabilité de gain : 1 chance sur {odds} pour le rang 1, pour toutes les grilles.
+        </p>
         <div className="grid gap-4 md:grid-cols-2">
           {(gen?.grids ?? []).map((g) => (
             <GridCard key={g.slot} grid={g} busy={busy === g.slot || busy === "all"}
@@ -171,18 +170,32 @@ export default function Home() {
           ))}
           {!gen && [1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-72" />)}
         </div>
-        <p className="mt-4 text-xs leading-relaxed text-muted">
-          Chaque combinaison a exactement la même probabilité d'être tirée (1 chance sur {odds} pour le rang 1).
-          Le score statistique mesure l'adéquation aux tendances passées, pas une probabilité. Le score anti-partage est une
-          <strong className="font-medium"> estimation</strong> du risque de partager un gain avec d'autres joueurs.{" "}
-          <Link to="/algorithmes" className="font-medium text-accent underline-offset-2 hover:underline">Voir les preuves</Link>
-        </p>
+        {proof && (
+          <Link to="/algorithmes" className="mt-4 flex flex-col gap-2 rounded-2xl border border-border bg-surface-2/70 p-4 text-sm transition-colors hover:bg-surface-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              <strong className="font-semibold">Preuve sur {proof.n} tirages passés</strong>
+              <span className="text-muted"> — bons numéros par grille : nos stratégies {fmtNum(proof.ours, 2)} · hasard {fmtNum(proof.random, 2)} · théorie {fmtNum(proof.theory, 2)}.
+                Seul gain mesurable : ≈ +{fmtNum(proof.share, 0)} % de jackpot conservé en cas de gain (estimation).</span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-1 font-medium text-accent">Voir les preuves <ArrowRight className="h-4 w-4" aria-hidden /></span>
+          </Link>
+        )}
       </section>
 
       {/* Quick stats */}
       <section aria-labelledby="quick-title">
         <SectionTitle id="quick-title" title="En bref" subtitle={s?.year_from ? `Depuis le ${fmtDate(s.year_from)}` : undefined}
           action={<Link to="/statistiques" className="btn-ghost">Statistiques détaillées <ArrowRight className="h-4 w-4" aria-hidden /></Link>} />
+        <div className="mb-4 grid grid-cols-2 gap-4">
+          <Kpi label="Tirages analysés" icon={<CalendarDays className="h-4 w-4" />}
+            value={s?.year_draws != null ? fmtInt(s.year_draws) : "—"}
+            sub={s?.history_draws ? <>année en cours · {fmtInt(s.history_draws)} en historique</> : "année en cours"} />
+          <Kpi label="Hasard des fréquences (χ²)" icon={<Sigma className="h-4 w-4" />}
+            value={s?.chi_square ? `p = ${fmtP(s.chi_square.p_value)}` : "—"}
+            sub={s?.chi_square ? (s.chi_square.p_value > 0.01
+              ? "Écarts du même ordre que le hasard pur"
+              : "Écart marqué : à confirmer sur d'autres périodes") : " "} />
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <NumberList title="Les plus fréquents" rows={s?.most_frequent} icon={<Flame className="h-4 w-4 text-warn" aria-hidden />} value={(r) => `${r.count}×`} />
           <NumberList title="Les moins fréquents" rows={s?.least_frequent} icon={<Snowflake className="h-4 w-4 text-accent" aria-hidden />} value={(r) => `${r.count}×`} />

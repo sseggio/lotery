@@ -225,7 +225,7 @@ honesty messages built into the UI.
 
 ## 7. Quality
 
-- 37 tests (`backend/tests`):
+- 39 tests (`backend/tests`):
   - official rules and exact probabilities;
   - parser (valid draws, rejected cases, the API's padded `drawType`);
   - no duplicates on sync;
@@ -235,7 +235,7 @@ honesty messages built into the UI.
   - single-slot regeneration;
   - popularity model (planted preferences recovered);
   - **no look-ahead** in the backtest;
-  - API: validation, security headers, Basic auth.
+  - API: validation, security headers, Basic auth (including a regression test for the Host header bypass), POST rate limiting, history pruning.
 - Security:
   - parameterised SQL;
   - bounded parameters;

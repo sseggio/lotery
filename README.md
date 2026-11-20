@@ -98,3 +98,11 @@ docs/CADRAGE.md      scoping and methodology
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | empty | protects the whole site (recommended) |
 | `HISTORY_START_YEAR` | 2016 | first year downloaded |
 | `SYNC_MIN_INTERVAL_S` | 60 | minimum delay between two manual refreshes |
+
+## Security (VPS)
+
+- Set `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` in `.env`. Without them, the site is open, and a warning is logged at startup.
+- Set `ALLOWED_HOSTS=your-domain` to reject any other `Host` header.
+- Keep the port bound to `127.0.0.1` and put an HTTPS reverse proxy in front (Caddy does it automatically, with HSTS).
+- Set `FORWARDED_ALLOW_IPS` to the reverse proxy's IP so the client IP used for rate limiting is reliable.
+- POSTs are limited to 40 per minute per IP. Manual refreshes are limited to one per minute. Backtests only accept a fixed list of parameters.

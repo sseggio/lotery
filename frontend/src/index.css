@@ -12,9 +12,9 @@
   --muted: 96 104 122;
   --accent: 91 91 214;
   --accent-fg: 255 255 255;
-  --good: 22 150 96;
-  --warn: 196 120 10;
-  --bad: 214 64 69;
+  --good: 21 122 79;   /* 5.3:1 on white (WCAG AA for small text) */
+  --warn: 150 90 5;    /* 5.6:1 */
+  --bad: 176 52 58;    /* 6.2:1 */
   --star: 214 150 10;
   --chart-grid: 226 229 236;
   color-scheme: light;

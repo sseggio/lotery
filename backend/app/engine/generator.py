@@ -239,30 +239,37 @@ class Engine:
             label = f"{max(lo, 1)}-{min(lo + 9, H)}"
             decades[label] = decades.get(label, 0) + 1
         top_q = max(5, H // 3)
+
+        def pl(n: int, word: str) -> str:
+            return f"{n} {word}{'s' if n > 1 else ''}"
+
+        def fr(x: float) -> str:
+            return f"{x:.2f}".replace(".", ",")
+
         reasons = []
         if strategy.objective == "freq":
             nb = int((rank_freq[ci] <= top_q).sum())
-            reasons.append(f"{nb} numéro(s) sur {k} parmi les {top_q} plus fréquents des {m.window} derniers tirages")
+            reasons.append(f"{nb} sur {k} parmi les {top_q} numéros les plus fréquents des {m.window} derniers tirages")
         elif strategy.objective == "recent":
             nb = int((rank_recent[ci] <= top_q).sum())
-            reasons.append(f"{nb} numéro(s) sur {k} parmi les {top_q} plus présents récemment (moyenne mobile pondérée)")
+            reasons.append(f"{nb} sur {k} parmi les {top_q} numéros les plus présents récemment (moyenne mobile pondérée)")
         elif strategy.objective in ("composite",):
             reasons.append(
                 f"Indicateur combiné : fréquence {s['pct_freq'][0]:.0f}/100, tendance {s['pct_recent'][0]:.0f}/100, "
                 f"paires {s['pct_pairs'][0]:.0f}/100")
         high31 = int((c > 31).sum())
         if high31:
-            reasons.append(f"{high31} numéro(s) > 31, hors de la plage des dates de naissance")
+            reasons.append(f"{pl(high31, 'numéro')} > 31, hors de la plage des dates de naissance")
         else:
             reasons.append("Tous les numéros ≤ 31 : combinaison de type « dates », souvent jouée")
         run = int(max_consecutive_run(c2)[0])
         reasons.append("Aucun numéro consécutif" if run == 1 else f"Plus longue suite : {run} numéros consécutifs")
         rel = pop["relative_popularity"]
-        reasons.append(f"Popularité estimée ×{rel:.2f} par rapport à une grille moyenne (estimation)")
+        reasons.append(f"Popularité estimée ×{fr(rel)} par rapport à une grille moyenne (estimation)")
         if pop["patterns"]:
             reasons.append("Motifs repérés : " + ", ".join(pop["patterns"]))
         if overlap:
-            reasons.append(f"Partage au plus {overlap} numéro(s) avec les grilles précédentes")
+            reasons.append(f"Partage au plus {pl(overlap, 'numéro')} avec les grilles précédentes")
         return {
             "strategy_label": strategy.label,
             "strategy_description": strategy.description,

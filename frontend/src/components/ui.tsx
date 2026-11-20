@@ -1,4 +1,4 @@
-import { AlertTriangle, Info, RefreshCw } from "lucide-react";
+import { AlertTriangle, Info, RefreshCw, Star } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 
 export function cx(...c: (string | false | null | undefined)[]) {
@@ -24,7 +24,7 @@ export function SectionTitle({ title, subtitle, action, id }: { title: string; s
 export function Ball({ n, kind = "main", size = "md", delay = 0, highlight = false }: {
   n: number; kind?: "main" | "star" | "bonus"; size?: "sm" | "md" | "lg"; delay?: number; highlight?: boolean;
 }) {
-  const dims = { sm: "h-8 w-8 text-[13px]", md: "h-10 w-10 text-[15px] sm:h-11 sm:w-11", lg: "h-12 w-12 text-lg sm:h-14 sm:w-14 sm:text-xl" }[size];
+  const dims = { sm: "h-8 w-8 text-[13px]", md: "h-10 w-10 text-[15px] sm:h-11 sm:w-11", lg: "h-11 w-11 text-base sm:h-14 sm:w-14 sm:text-xl" }[size];
   const style = {
     main: "bg-gradient-to-b from-surface to-surface-2 text-fg ring-1 ring-inset ring-border shadow-[inset_0_-2px_0_rgb(0_0_0/0.06),0_1px_2px_rgb(0_0_0/0.08)]",
     star: "bg-star/15 text-fg ring-1 ring-inset ring-star/50",
@@ -32,11 +32,12 @@ export function Ball({ n, kind = "main", size = "md", delay = 0, highlight = fal
   }[kind];
   return (
     <span
-      className={cx("inline-flex shrink-0 select-all items-center justify-center rounded-full font-semibold tabular animate-pop",
+      className={cx("relative inline-flex shrink-0 select-all items-center justify-center rounded-full font-semibold tabular animate-pop",
         dims, style, highlight && "ring-2 ring-accent")}
       style={{ animationDelay: `${delay}ms` }}
     >
       {n}
+      {kind === "star" && <Star className="absolute -right-0.5 -top-0.5 h-3 w-3 fill-star text-star" aria-hidden />}
     </span>
   );
 }
@@ -46,30 +47,39 @@ export function Balls({ numbers, extras, bonus, size = "md", label }: {
 }) {
   const aria = `${label ? label + " : " : ""}${numbers.join(", ")}${extras?.length ? " ; étoiles " + extras.join(", ") : ""}${bonus ? " ; bonus " + bonus : ""}`;
   return (
-    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label={aria}>
-      {numbers.map((n, i) => <Ball key={`m${n}`} n={n} size={size} delay={i * 35} />)}
-      {extras && extras.length > 0 && <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />}
-      {extras?.map((n, i) => <Ball key={`e${n}`} n={n} kind="star" size={size} delay={(numbers.length + i) * 35} />)}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label={aria}>
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        {numbers.map((n, i) => <Ball key={`m${n}`} n={n} size={size} delay={i * 35} />)}
+      </div>
+      {extras && extras.length > 0 && (
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {extras.map((n, i) => <Ball key={`e${n}`} n={n} kind="star" size={size} delay={(numbers.length + i) * 35} />)}
+        </div>
+      )}
       {bonus != null && (
-        <>
-          <span className="ml-1 text-xs text-muted" aria-hidden>bonus</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted" aria-hidden>bonus</span>
           <Ball n={bonus} kind="bonus" size={size} delay={numbers.length * 35} />
-        </>
+        </div>
       )}
     </div>
   );
 }
 
-export function ScoreBar({ label, value, tone = "accent", hint }: { label: string; value: number; tone?: "accent" | "good" | "star"; hint?: string }) {
-  const bar = { accent: "bg-accent", good: "bg-good", star: "bg-star" }[tone];
+/** Percentile bar (0-100) with a marker at 50 = median random grid. */
+export function ScoreBar({ label, value, tone = "accent", hint }: { label: string; value: number; tone?: "accent" | "good" | "neutral"; hint?: string }) {
+  const bar = { accent: "bg-accent", good: "bg-good", neutral: "bg-fg/55" }[tone];
+  const shown = value > 99 ? "> 99" : String(Math.round(value));
   return (
-    <div title={hint}>
-      <div className="mb-1 flex items-baseline justify-between text-xs">
-        <span className="text-muted">{label}</span>
-        <span className="font-semibold tabular">{Math.round(value)}<span className="font-normal text-muted">/100</span></span>
+    <div title={hint} className="min-w-0">
+      <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+        <span className="min-w-0 truncate text-muted">{label}</span>
+        <span className="shrink-0 font-semibold tabular">{shown}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-surface-2" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value)} aria-label={label}>
+      <div className="relative h-1.5 overflow-hidden rounded-full bg-surface-2" role="meter" aria-valuemin={0} aria-valuemax={100}
+        aria-valuenow={Math.round(value)} aria-label={`${label} : percentile ${Math.round(value)} sur 100 (50 = grille aléatoire moyenne)`}>
         <div className={cx("h-full rounded-full transition-[width] duration-500", bar)} style={{ width: `${Math.max(2, value)}%` }} />
+        <span className="absolute left-1/2 top-0 h-full w-px bg-fg/40" aria-hidden />
       </div>
     </div>
   );

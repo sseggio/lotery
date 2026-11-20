@@ -1,5 +1,6 @@
 import { Star } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { GridCard } from "../components/GridCard";
 import { Balls, Card, ErrorState, SectionTitle, Segmented, Skeleton } from "../components/ui";
 import { api, Generation, Grid } from "../lib/api";
@@ -15,6 +16,12 @@ export default function History() {
   const [limit, setLimit] = useState(10);
   const favs = useAsync(() => api.favorites(game), [game, tab]);
   const hist = useAsync(() => api.generations(game, limit), [game, limit, tab]);
+
+  // Open on the history when there is no favourite yet (once).
+  const switched = useRef(false);
+  useEffect(() => {
+    if (!switched.current && favs.data && favs.data.length === 0) { switched.current = true; setTab("hist"); }
+  }, [favs.data]);
 
   async function toggle(g: Grid, fav: boolean) {
     await api.favorite(g.id, fav);
@@ -42,6 +49,7 @@ export default function History() {
               <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-star/10 text-star"><Star className="h-5 w-5" aria-hidden /></span>
               <div className="font-semibold">Aucun favori pour l'instant</div>
               <p className="max-w-sm text-sm text-muted">Sur le tableau de bord, cliquez sur l'étoile d'une grille pour la retrouver ici.</p>
+              <Link to="/" className="btn-primary">Voir mes grilles</Link>
             </Card>
           )}
           <div className="grid gap-4 md:grid-cols-2">

@@ -23,7 +23,7 @@ export function SyncButton({ compact = false, onDone }: { compact?: boolean; onD
     setMsg(null);
     try {
       const r = await api.sync(game);
-      setMsg({ ok: true, text: r.new_draws ? `${r.new_draws} nouveau(x) tirage(s) ajouté(s)` : "Déjà à jour" });
+      setMsg({ ok: true, text: r.new_draws ? (r.new_draws > 1 ? `${r.new_draws} nouveaux tirages ajoutés` : "1 nouveau tirage ajouté") : "Déjà à jour" });
       bumpData();
       onDone?.();
     } catch (e) {

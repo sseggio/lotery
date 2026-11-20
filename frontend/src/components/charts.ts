@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 export interface ChartColors {
   accent: string; muted: string; grid: string; fg: string; good: string; bad: string; warn: string; star: string; surface: string;
   series: string[];
+  dark: boolean;
 }
 
 function read(): ChartColors {
@@ -16,6 +17,7 @@ function read(): ChartColors {
     series: dark
       ? ["#8b8bff", "#4fd1a5", "#f5b950", "#ff7c9c", "#5cc8ff", "#b89bff"]
       : ["#5b5bd6", "#12a37a", "#c98a0a", "#d6406f", "#1d8fd1", "#8a5cd6"],
+    dark,
   };
 }
 

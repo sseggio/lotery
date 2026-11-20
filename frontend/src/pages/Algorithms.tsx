@@ -37,6 +37,10 @@ const METHODS = [
     use: "Score anti-partage de toutes les grilles ; grilles 3 et 4." },
 ];
 
+const SHORT: Record<string, string> = {
+  aleatoire: "Hasard", frequence: "Fréquences", tendance: "Tendances", hybride: "Hybride", anti_partage: "Anti-partage", retard: "Retards",
+};
+
 function BacktestSection({ game, info }: { game: string; info?: GameInfo }) {
   const c = useChartColors();
   const { balance } = useApp();
@@ -48,7 +52,7 @@ function BacktestSection({ game, info }: { game: string; info?: GameInfo }) {
   const anySig = others.some((r) => r.significant_bonferroni);
   const random = d?.results.find((r) => r.strategy === "aleatoire");
 
-  const chartData = d?.results.map((r) => ({ name: r.label.replace(/ \(.*\)/, ""), key: r.strategy, mean: r.mean_hits, err: [r.mean_hits - r.ci95[0], r.ci95[1] - r.mean_hits] }));
+  const chartData = d?.results.map((r) => ({ name: SHORT[r.strategy] ?? r.label, key: r.strategy, mean: r.mean_hits, err: [r.mean_hits - r.ci95[0], r.ci95[1] - r.mean_hits] }));
   const cum = d ? d.test_dates.map((date, i) => {
     const row: Record<string, number | string> = { date };
     d.results.forEach((r) => { row[r.strategy] = r.cumulative_mean[i]; });
@@ -98,15 +102,15 @@ function BacktestSection({ game, info }: { game: string; info?: GameInfo }) {
               <p className="text-xs text-muted">Ligne pointillée : espérance théorique exacte</p>
               <div className="h-64" role="img" aria-label="Moyenne de bons numéros par stratégie avec intervalles de confiance">
                 <ResponsiveContainer>
-                  <BarChart data={chartData} margin={{ top: 12, right: 8, left: -14, bottom: 0 }}>
-                    <CartesianGrid vertical={false} stroke={c.grid} />
-                    <XAxis dataKey="name" {...axisProps(c)} interval={0} angle={-20} textAnchor="end" height={56} />
-                    <YAxis {...axisProps(c)} domain={[0, "auto"]} tickFormatter={(v) => fmtNum(v, 2)} />
+                  <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
+                    <CartesianGrid horizontal={false} stroke={c.grid} />
+                    <YAxis type="category" dataKey="name" {...axisProps(c)} width={92} />
+                    <XAxis type="number" {...axisProps(c)} domain={[0, "auto"]} tickFormatter={(v) => fmtNum(v, 2)} />
                     <Tooltip formatter={(v: number) => fmtNum(v, 3)} />
-                    <ReferenceLine y={d.theoretical_mean_hits} stroke={c.fg} strokeDasharray="5 4" />
-                    <Bar dataKey="mean" name="Moyenne" radius={[6, 6, 0, 0]} isAnimationActive={false}>
+                    <ReferenceLine x={d.theoretical_mean_hits} stroke={c.fg} strokeDasharray="5 4" />
+                    <Bar dataKey="mean" name="Moyenne" radius={[0, 6, 6, 0]} isAnimationActive={false}>
                       {chartData?.map((x, i) => <Cell key={x.key} fill={x.key === "aleatoire" ? c.muted : c.series[i % c.series.length]} />)}
-                      <ErrorBar dataKey="err" width={6} stroke={c.fg} strokeWidth={1.2} />
+                      <ErrorBar dataKey="err" width={6} stroke={c.fg} strokeWidth={1.2} direction="x" />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -124,7 +128,7 @@ function BacktestSection({ game, info }: { game: string; info?: GameInfo }) {
                     <Tooltip labelFormatter={(l) => fmtDate(String(l))} formatter={(v: number) => fmtNum(v, 3)} />
                     <ReferenceLine y={d.theoretical_mean_hits} stroke={c.fg} strokeDasharray="5 4" />
                     {d.results.map((r, i) => (
-                      <Line key={r.strategy} dataKey={r.strategy} name={r.label.replace(/ \(.*\)/, "")} dot={false} isAnimationActive={false}
+                      <Line key={r.strategy} dataKey={r.strategy} name={SHORT[r.strategy] ?? r.label} dot={false} isAnimationActive={false}
                         stroke={r.strategy === "aleatoire" ? c.muted : c.series[i % c.series.length]} strokeWidth={r.strategy === "aleatoire" ? 2.5 : 1.6} />
                     ))}
                     <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -141,7 +145,7 @@ function BacktestSection({ game, info }: { game: string; info?: GameInfo }) {
                 <caption className="sr-only">Résultats du backtest par stratégie</caption>
                 <thead className="text-left text-xs text-muted">
                   <tr>
-                    <th className="py-2 pr-3 font-medium">Stratégie</th><th className="pr-3 font-medium">Bons n°/grille</th>
+                    <th className="sticky left-0 z-[1] bg-surface py-2 pr-3 font-medium">Stratégie</th><th className="pr-3 font-medium">Bons n°/grille</th>
                     <th className="pr-3 font-medium" title="Écart à l'espérance théorique">vs théorie</th><th className="pr-3 font-medium">IC 95 %</th>
                     <th className="pr-3 font-medium" title="p-value (inférence par tirage, robuste à la corrélation des grilles)">p</th>
                     <th className="pr-3 font-medium" title="Test apparié contre la stratégie aléatoire">p vs hasard</th>
@@ -154,9 +158,10 @@ function BacktestSection({ game, info }: { game: string; info?: GameInfo }) {
                 <tbody>
                   {d.results.map((r) => (
                     <tr key={r.strategy} className={cx("border-t border-border", r.strategy === "aleatoire" && "bg-surface-2/60")}>
-                      <td className="py-2 pr-3 font-medium">{r.label}</td>
+                      <td className={cx("sticky left-0 z-[1] py-2 pr-3 font-medium", r.strategy === "aleatoire" ? "bg-surface-2" : "bg-surface")}>{r.label}</td>
                       <td className="pr-3">{fmtNum(r.mean_hits, 3)}</td>
-                      <td className={cx("pr-3", r.delta_vs_theory_pct > 0 ? "text-good" : r.delta_vs_theory_pct < 0 ? "text-bad" : "")}>{r.delta_vs_theory_pct > 0 ? "+" : ""}{fmtNum(r.delta_vs_theory_pct, 1)} %</td>
+                      <td className={cx("pr-3", !r.significant_bonferroni ? "text-muted" : r.delta_vs_theory_pct > 0 ? "text-good" : "text-bad")}
+                        title={r.significant_bonferroni ? "Écart significatif" : "Écart non significatif (bruit statistique)"}>{r.delta_vs_theory_pct > 0 ? "+" : ""}{fmtNum(r.delta_vs_theory_pct, 1)} %</td>
                       <td className="pr-3 text-muted">[{fmtNum(r.ci95[0], 3)} ; {fmtNum(r.ci95[1], 3)}]</td>
                       <td className={cx("pr-3", r.significant && "font-semibold text-warn")}>{fmtP(r.p_value)}</td>
                       <td className="pr-3">{r.p_value_vs_random != null ? fmtP(r.p_value_vs_random) : "—"}</td>
@@ -222,7 +227,7 @@ function PopularitySection({ game, info }: { game: string; info?: GameInfo }) {
               <ResponsiveContainer>
                 <BarChart data={p.numbers} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
                   <CartesianGrid vertical={false} stroke={c.grid} />
-                  <XAxis dataKey="number" {...axisProps(c)} interval={1} />
+                  <XAxis dataKey="number" {...axisProps(c)} ticks={[1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50].filter((t) => t <= p.numbers.length)} interval={0} />
                   <YAxis {...axisProps(c)} domain={[0.7, 1.35]} tickFormatter={(v) => fmtNum(v, 1)} />
                   <Tooltip formatter={(v: number) => `×${fmtNum(v, 3)}`} labelFormatter={(l) => `Numéro ${l}`} />
                   <ReferenceLine y={1} stroke={c.muted} />
@@ -318,10 +323,10 @@ function ScoreMyGrid({ game, info }: { game: string; info?: GameInfo }) {
       {err && <div className="mt-3"><ErrorState message={err} /></div>}
       {res && (
         <div className="mt-4 grid animate-fade gap-4 rounded-xl bg-surface-2 p-4 sm:grid-cols-[1fr_1.2fr]">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
             <ScoreBar label="Statistique" value={res.stat_score} />
-            <ScoreBar label="Anti-partage" value={res.anti_score} tone="good" />
-            <ScoreBar label="Global" value={res.global_score} tone="star" />
+            <ScoreBar label="Anti-partage (estim.)" value={res.anti_score} tone="good" />
+            <ScoreBar label="Combiné" value={res.global_score} tone="neutral" />
           </div>
           <ul className="space-y-1 text-sm">{res.details.reasons.map((r) => <li key={r}>• {r}</li>)}</ul>
         </div>

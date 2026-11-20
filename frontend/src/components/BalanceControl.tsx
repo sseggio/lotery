@@ -23,12 +23,12 @@ export function BalanceControl() {
         ))}
       </div>
       <label className="flex items-center gap-3 text-xs text-muted">
-        <span className="whitespace-nowrap">Anti-partage</span>
+        <span className="whitespace-nowrap tabular">Anti-partage {100 - Math.round(balance * 100)} %</span>
         <input type="range" min={0} max={100} step={5} value={Math.round(balance * 100)}
           onChange={(e) => setBalance(Number(e.target.value) / 100)}
           className="h-2 w-full cursor-pointer accent-[rgb(var(--accent))]"
           aria-label="Poids des statistiques historiques (en %)" />
-        <span className="whitespace-nowrap">Stats {Math.round(balance * 100)} %</span>
+        <span className="whitespace-nowrap tabular">{Math.round(balance * 100)} % Statistiques</span>
       </label>
     </div>
   );
