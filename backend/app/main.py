@@ -9,6 +9,8 @@ import base64
 import logging
 import secrets
 import threading
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 
@@ -16,6 +18,7 @@ from fastapi import Body, FastAPI, HTTPException, Path, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 from . import services
@@ -42,7 +45,7 @@ def _startup_tasks() -> None:
     # Warm the default backtest so the comparison page is instant.
     for game in GAMES.values():
         try:
-            services.backtest(db, game, 100, 10, 0.5)
+            services.backtest(db, game, 100, 10, 0.5, wait=True)
         except Exception:
             log.exception("backtest warm-up failed for %s", game.key)
 
@@ -57,7 +60,7 @@ def _start_scheduler():
         try:
             res = sync_mod.sync_game(get_db(), GAMES[game_key], trigger="scheduler")
             if res.get("new_draws"):
-                services.backtest(get_db(), GAMES[game_key], 100, 10, 0.5)
+                services.backtest(get_db(), GAMES[game_key], 100, 10, 0.5, wait=True)
         except Exception:
             log.exception("scheduled sync failed")
 
@@ -84,6 +87,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Lotery — analyse statistique Loterie Nationale", lifespan=lifespan,
               docs_url=None, redoc_url=None, openapi_url=None)
 
+if settings.allowed_hosts:
+    app.add_middleware(TrustedHostMiddleware,
+                       allowed_hosts=[h.strip() for h in settings.allowed_hosts.split(",") if h.strip()] + ["127.0.0.1", "localhost"])
+if not (settings.basic_auth_user and settings.basic_auth_password):
+    log.warning("BASIC_AUTH_USER/BASIC_AUTH_PASSWORD not set: the site is open to anyone who can reach it.")
+
 
 # ---- middleware: auth + security headers --------------------------------
 CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
@@ -91,9 +100,41 @@ CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inlin
        "base-uri 'self'; form-action 'self'")
 
 
+_hits: dict[str, deque] = defaultdict(deque)
+_hits_lock = threading.Lock()
+
+
+def _rate_limited(ip: str) -> bool:
+    """Sliding one-minute window per client IP for state-changing requests."""
+    now = time.monotonic()
+    with _hits_lock:
+        q = _hits[ip]
+        while q and now - q[0] > 60:
+            q.popleft()
+        if len(q) >= settings.post_rate_per_min:
+            return True
+        q.append(now)
+        if len(_hits) > 10000:  # bound memory
+            for k in [k for k, v in _hits.items() if not v][:5000]:
+                del _hits[k]
+        return False
+
+
+def _with_headers(response: Response) -> Response:
+    response.headers["Content-Security-Policy"] = CSP
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
+
 @app.middleware("http")
 async def security(request: Request, call_next):
-    if settings.basic_auth_user and settings.basic_auth_password and request.url.path != "/api/health":
+    # Use the routed path from the ASGI scope, never request.url (rebuilt from the
+    # client-controlled Host header, which allowed an auth bypass).
+    path = request.scope.get("path", "")
+    if settings.basic_auth_user and settings.basic_auth_password and path != "/api/health":
         ok = False
         header = request.headers.get("authorization", "")
         if header.lower().startswith("basic "):
@@ -104,14 +145,11 @@ async def security(request: Request, call_next):
             except (ValueError, UnicodeDecodeError):
                 ok = False
         if not ok:
-            return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="lotery"'})
-    response = await call_next(request)
-    response.headers["Content-Security-Policy"] = CSP
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Referrer-Policy"] = "same-origin"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    if request.url.path.startswith("/api/"):
+            return _with_headers(Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="lotery"'}))
+    if request.method == "POST" and _rate_limited(request.client.host if request.client else "?"):
+        return _with_headers(JSONResponse(status_code=429, content={"detail": "Trop de requêtes, patientez une minute."}))
+    response = _with_headers(await call_next(request))
+    if path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -129,12 +167,8 @@ def _game(key: str):
 async def _call(fn, *args):
     try:
         return await run_in_threadpool(fn, *args)
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except TimeoutError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except services.AppError as exc:  # only business errors carry a client-safe message
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 
 
 # ---- API ------------------------------------------------------------------
@@ -277,8 +311,8 @@ async def popularity(game: Annotated[GameKey, Path()]):
 
 @app.get("/api/{game}/backtest")
 async def backtest(game: Annotated[GameKey, Path()],
-                   n_draws: Annotated[int, Query(ge=20, le=300)] = 100,
-                   grids_per_draw: Annotated[int, Query(ge=1, le=20)] = 10,
+                   n_draws: Annotated[int, Query(ge=50, le=300)] = 100,
+                   grids_per_draw: Annotated[int, Query(ge=5, le=20)] = 10,
                    balance: Annotated[float, Query(ge=0.0, le=1.0)] = 0.5):
     balance = round(balance * 4) / 4  # 5 cache-friendly levels
     return await _call(services.backtest, get_db(), _game(game), n_draws, grids_per_draw, balance)

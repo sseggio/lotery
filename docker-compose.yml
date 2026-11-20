@@ -1,0 +1,26 @@
+services:
+  lotery:
+    build: .
+    image: lotery:latest
+    container_name: lotery
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TZ: Europe/Brussels
+    # Bound to localhost: put a reverse proxy with HTTPS (Caddy, Traefik, Nginx) in front.
+    # Use "8000:8000" only for a quick local test.
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - lotery-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+volumes:
+  lotery-data:

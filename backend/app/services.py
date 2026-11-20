@@ -23,6 +23,30 @@ from .games import Game
 
 log = logging.getLogger(__name__)
 
+
+class AppError(Exception):
+    """Business error whose message is safe to show to the client."""
+    status = 400
+
+
+class NotFound(AppError):
+    status = 404
+
+
+class Busy(AppError):
+    status = 503
+
+
+class BadRequest(AppError):
+    status = 422
+
+
+# Backtest parameters are whitelisted: bounded CPU cost and bounded cache size.
+BACKTEST_DRAWS = (50, 100, 200, 300)
+BACKTEST_GRIDS = (5, 10, 20)
+BACKTEST_BALANCES = (0.0, 0.25, 0.5, 0.75, 1.0)
+MAX_GENERATIONS_KEPT = 500
+
 _engine_cache: dict[str, tuple[int, History, Engine]] = {}
 _stats_cache: dict[tuple, Any] = {}
 _cache_lock = threading.Lock()
@@ -42,7 +66,7 @@ def engine_for(db: Database, game: Game) -> tuple[History, Engine]:
             return cached[1], cached[2]
     h = load_history(db, game)
     if len(h) < 30:
-        raise LookupError("Pas encore assez de tirages : lancez une actualisation.")
+        raise NotFound("Pas encore assez de tirages : lancez une actualisation.")
     eng = Engine(h)
     with _cache_lock:
         _engine_cache[game.key] = (lid, h, eng)
@@ -233,13 +257,14 @@ def new_generation(db: Database, game: Game, balance: float) -> dict[str, Any]:
     gid = db.create_generation(game.key, balance, int(h.ids[-1]), len(h))
     for slot, g in grids.items():
         db.insert_grid(gid, slot, g)
+    db.prune_generations(game.key, MAX_GENERATIONS_KEPT)
     return generation_dict(db, db.get_generation(gid))
 
 
 def regenerate_slot(db: Database, game: Game, generation_id: int, slot: int, balance: float) -> dict[str, Any]:
     gen = db.get_generation(generation_id)
     if gen is None or gen["game"] != game.key:
-        raise LookupError("Génération introuvable")
+        raise NotFound("Génération introuvable")
     h, eng = engine_for(db, game)
     existing = {r["slot"]: json.loads(r["numbers"]) for r in db.grids_for_generation(generation_id)}
     res = generate_grids(eng, balance, seed=secrets.randbits(63), existing=existing, only_slot=slot)
@@ -267,19 +292,26 @@ def score_user_grid(db: Database, game: Game, numbers: list[int], extras: list[i
 
 
 # ---- backtest -----------------------------------------------------------
-def backtest(db: Database, game: Game, n_test: int, grids_per_draw: int, balance: float) -> dict[str, Any]:
+def backtest(db: Database, game: Game, n_test: int, grids_per_draw: int, balance: float,
+             wait: bool = False) -> dict[str, Any]:
+    if n_test not in BACKTEST_DRAWS or grids_per_draw not in BACKTEST_GRIDS or balance not in BACKTEST_BALANCES:
+        raise BadRequest("Paramètres de backtest non autorisés")
     key = f"{game.key}:backtest:{_last_id(db, game)}:{n_test}:{grids_per_draw}:{balance:.2f}"
     cached = db.cache_get(key)
     if cached:
         return cached
-    if not _backtest_lock.acquire(timeout=120):
-        raise TimeoutError("Un backtest est déjà en cours, réessayez dans un instant.")
+    # Never queue requests (each would hold a worker thread): answer "busy" at once.
+    if not _backtest_lock.acquire(blocking=wait, timeout=600 if wait else -1):
+        raise Busy("Un backtest est déjà en cours de calcul, réessayez dans quelques secondes.")
     try:
         cached = db.cache_get(key)
         if cached:
             return cached
         h = load_history(db, game)
-        res = bt.run_backtest(h, n_test=n_test, grids_per_draw=grids_per_draw, balance=balance)
+        try:
+            res = bt.run_backtest(h, n_test=n_test, grids_per_draw=grids_per_draw, balance=balance)
+        except ValueError as exc:
+            raise BadRequest("Historique insuffisant pour ce backtest") from exc
         res["computed_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         db.cache_set(key, res)
         return res

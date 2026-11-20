@@ -73,7 +73,8 @@ def test_score_user_grid(client):
 def test_backtest_bounds(client):
     assert client.get("/api/lotto/backtest?n_draws=5000").status_code == 422
     assert client.get("/api/lotto/backtest?grids_per_draw=500").status_code == 422
-    r = client.get("/api/lotto/backtest?n_draws=20&grids_per_draw=2")
+    assert client.get("/api/lotto/backtest?n_draws=73&grids_per_draw=5").status_code == 422  # not whitelisted
+    r = client.get("/api/lotto/backtest?n_draws=50&grids_per_draw=5")
     assert r.status_code == 200
     assert {x["strategy"] for x in r.json()["results"]} >= {"aleatoire", "anti_partage"}
 
@@ -93,6 +94,34 @@ def test_basic_auth(client, monkeypatch):
         assert client.get("/api/games", auth=("u", "bad")).status_code == 401
         assert client.get("/api/games", auth=("u", "p")).status_code == 200
         assert client.get("/api/health").status_code == 200
+        # Regression: a forged Host header must not bypass authentication.
+        assert client.get("/api/games", headers={"Host": "x/api/health?"}).status_code in (400, 401)
+        r401 = client.get("/api/games")
+        assert "frame-ancestors" in r401.headers.get("content-security-policy", "")
     finally:
         object.__setattr__(main.settings, "basic_auth_user", "")
         object.__setattr__(main.settings, "basic_auth_password", "")
+
+
+def test_post_rate_limit(client, monkeypatch):
+    from app import main
+
+    main._hits.clear()
+    object.__setattr__(main.settings, "post_rate_per_min", 3)
+    try:
+        codes = [client.post("/api/grids/999/favorite", json={"favorite": True}).status_code for _ in range(5)]
+        assert codes[:3] == [404, 404, 404] and codes[3:] == [429, 429]
+    finally:
+        object.__setattr__(main.settings, "post_rate_per_min", 40)
+        main._hits.clear()
+
+
+def test_history_is_pruned(db, lotto):
+    from app import services
+    from conftest import load_into, synthetic_draws
+
+    load_into(db, lotto, synthetic_draws(lotto, 120, seed=3))
+    for _ in range(4):
+        services.new_generation(db, lotto, 0.5)
+    db.prune_generations(lotto.key, 2)
+    assert len(db.generations(lotto.key, 50)) == 2

@@ -30,6 +30,11 @@ class Settings:
     # Optional HTTP Basic auth for the whole site (recommended on a public VPS).
     basic_auth_user: str = field(default_factory=lambda: os.environ.get("BASIC_AUTH_USER", ""))
     basic_auth_password: str = field(default_factory=lambda: os.environ.get("BASIC_AUTH_PASSWORD", ""))
+    # Comma-separated host names accepted in the Host header (e.g. "lotery.example.com").
+    # Empty = any host (fine behind a reverse proxy that only forwards your domain).
+    allowed_hosts: str = field(default_factory=lambda: os.environ.get("ALLOWED_HOSTS", ""))
+    # Max POST requests per client IP per minute (generation, favourites, sync, score).
+    post_rate_per_min: int = field(default_factory=lambda: _int("POST_RATE_PER_MIN", 40))
     # Enable the automatic sync scheduler (disabled in tests).
     scheduler_enabled: bool = field(default_factory=lambda: os.environ.get("SCHEDULER_ENABLED", "1") == "1")
     # Static frontend build directory served by FastAPI.

@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens (RGB triplets so Tailwind can apply opacity). */
+:root {
+  --bg: 247 248 250;
+  --surface: 255 255 255;
+  --surface-2: 241 243 247;
+  --border: 226 229 236;
+  --fg: 17 20 28;
+  --muted: 96 104 122;
+  --accent: 91 91 214;
+  --accent-fg: 255 255 255;
+  --good: 22 150 96;
+  --warn: 196 120 10;
+  --bad: 214 64 69;
+  --star: 214 150 10;
+  --chart-grid: 226 229 236;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: 11 13 18;
+    --surface: 19 22 30;
+    --surface-2: 27 31 41;
+    --border: 38 43 56;
+    --fg: 236 238 244;
+    --muted: 150 158 176;
+    --accent: 132 132 255;
+    --accent-fg: 12 12 30;
+    --good: 52 199 132;
+    --warn: 240 170 60;
+    --bad: 255 110 110;
+    --star: 250 196 70;
+    --chart-grid: 38 43 56;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: 11 13 18;
+  --surface: 19 22 30;
+  --surface-2: 27 31 41;
+  --border: 38 43 56;
+  --fg: 236 238 244;
+  --muted: 150 158 176;
+  --accent: 132 132 255;
+  --accent-fg: 12 12 30;
+  --good: 52 199 132;
+  --warn: 240 170 60;
+  --bad: 255 110 110;
+  --star: 250 196 70;
+  --chart-grid: 38 43 56;
+  color-scheme: dark;
+}
+
+html, body { background: rgb(var(--bg)); color: rgb(var(--fg)); }
+body { -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01"; }
+
+@layer components {
+  .card { @apply rounded-2xl border border-border bg-surface shadow-card; }
+  .btn { @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-4 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-accent text-accent-fg hover:brightness-110; }
+  .btn-ghost { @apply btn border border-border bg-surface text-fg hover:bg-surface-2; }
+  .icon-btn { @apply inline-flex h-11 w-11 items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent; }
+  .label { @apply text-xs font-medium uppercase tracking-wide text-muted; }
+  .tabular { font-variant-numeric: tabular-nums; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* Recharts tooltips follow the theme */
+.recharts-default-tooltip { background: rgb(var(--surface)) !important; border: 1px solid rgb(var(--border)) !important; border-radius: 12px !important; color: rgb(var(--fg)); }
+.recharts-tooltip-label { color: rgb(var(--muted)); }

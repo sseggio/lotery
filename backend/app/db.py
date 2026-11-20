@@ -269,6 +269,17 @@ class Database:
             sql += " AND active=1"
         return self.query(sql + " ORDER BY slot, id", (generation_id,))
 
+    def prune_generations(self, game: str, keep: int) -> None:
+        """Delete old generations beyond `keep`, except those holding a favourite."""
+        with self.tx() as c:
+            old = [r[0] for r in c.execute(
+                "SELECT id FROM generations WHERE game=? ORDER BY id DESC LIMIT -1 OFFSET ?", (game, keep))]
+            for gid in old:
+                if c.execute("SELECT 1 FROM grids WHERE generation_id=? AND favorite=1", (gid,)).fetchone():
+                    continue
+                c.execute("DELETE FROM grids WHERE generation_id=?", (gid,))
+                c.execute("DELETE FROM generations WHERE id=?", (gid,))
+
     def grid(self, grid_id: int) -> sqlite3.Row | None:
         rows = self.query("SELECT * FROM grids WHERE id=?", (grid_id,))
         return rows[0] if rows else None
