@@ -1,0 +1,50 @@
+# Deployment behind an existing Traefik (v2 or v3) reverse proxy.
+#
+#   cp .env.example .env      # then fill DOMAIN, TRAEFIK_* and BASIC_AUTH_*
+#   docker compose -f docker-compose.traefik.yml up -d --build
+#
+# No port is published on the host: Traefik reaches the container through its
+# Docker network and handles HTTPS (Let's Encrypt) like for your other sites.
+services:
+  lotery:
+    build: .
+    image: lotery:latest
+    container_name: lotery
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      TZ: Europe/Brussels
+      ALLOWED_HOSTS: ${DOMAIN:?DOMAIN must be set in .env}
+      # Only Traefik's Docker network may set X-Forwarded-For (client IP for rate limiting).
+      FORWARDED_ALLOW_IPS: ${TRAEFIK_SUBNET:-127.0.0.1}
+    volumes:
+      - lotery-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:?TRAEFIK_NETWORK must be set in .env}
+      - traefik.http.routers.lotery.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.lotery.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.lotery.tls=true
+      - traefik.http.routers.lotery.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      - traefik.http.routers.lotery.middlewares=lotery-hsts
+      - traefik.http.middlewares.lotery-hsts.headers.stsSeconds=31536000
+      - traefik.http.middlewares.lotery-hsts.headers.stsIncludeSubdomains=true
+      - traefik.http.services.lotery.loadbalancer.server.port=8000
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK}
+
+volumes:
+  lotery-data:

@@ -54,6 +54,18 @@ Data lives in the `lotery-data` volume (a single SQLite file). Backup:
 docker run --rm -v lotery_lotery-data:/data -v "$PWD":/backup alpine cp /data/lotery.db /backup/
 ```
 
+## Deployment behind an existing Traefik
+
+```bash
+cp .env.example .env   # DOMAIN, TRAEFIK_NETWORK, TRAEFIK_SUBNET, BASIC_AUTH_*
+```
+
+```bash
+docker compose -f docker-compose.traefik.yml up -d --build
+```
+
+No port is opened on the host. Traefik handles HTTPS like it does for the other sites.
+
 ## Local development
 
 ```bash
