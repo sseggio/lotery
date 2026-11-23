@@ -1,6 +1,6 @@
 # CI/CD: tests -> Docker image on GitHub Container Registry (ghcr.io) -> deployment on the VPS.
 #
-# Repository settings > Secrets and variables > Actions, environment "production":
+# Repository settings > Secrets and variables > Actions, environment "prod":
 #   Secrets:   SSH_PRIVATE_KEY   private key of the deploy user on the VPS
 #              SSH_KNOWN_HOSTS   output of `ssh-keyscan -t ed25519 <vps>` (prevents MITM)
 #              DEPLOY_HOST       VPS address (IP or host name)
@@ -103,7 +103,7 @@ jobs:
        (github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != ''))
     runs-on: ubuntu-latest
     environment:
-      name: production
+      name: prod
       url: https://${{ vars.DOMAIN || 'example.invalid' }}
     concurrency:
       group: production
@@ -113,7 +113,7 @@ jobs:
       packages: read
     env:
       TAG: ${{ github.event.inputs.image_tag || needs.build.outputs.tag }}
-      # Accepted either as secrets or as variables (repository or "production" environment).
+      # Accepted either as secrets or as variables (repository or "prod" environment).
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || vars.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER || vars.DEPLOY_USER }}
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH || secrets.DEPLOY_PATH }}
@@ -134,7 +134,7 @@ jobs:
           [ "$HAS_KNOWN_HOSTS" = "true" ] || missing="$missing SSH_KNOWN_HOSTS"
           if [ -n "$missing" ]; then
             echo "::error::Missing (not visible to this job):$missing"
-            echo "Create them in Settings > Environments > production (or Settings > Secrets and variables > Actions)."
+            echo "Create them in Settings > Environments > prod (or Settings > Secrets and variables > Actions)."
             exit 1
           fi
       - name: Set up SSH
