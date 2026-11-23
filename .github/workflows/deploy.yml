@@ -104,7 +104,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://${{ vars.DOMAIN }}
+      url: https://${{ vars.DOMAIN || 'example.invalid' }}
     concurrency:
       group: production
       cancel-in-progress: false
@@ -113,16 +113,30 @@ jobs:
       packages: read
     env:
       TAG: ${{ github.event.inputs.image_tag || needs.build.outputs.tag }}
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
-      DOMAIN: ${{ vars.DOMAIN }}
+      # Accepted either as secrets or as variables (repository or "production" environment).
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER || vars.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || secrets.DEPLOY_PATH }}
+      DOMAIN: ${{ vars.DOMAIN || secrets.DOMAIN }}
+      HAS_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY != '' }}
+      HAS_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS != '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Validate inputs
         run: |
           [[ "$TAG" =~ ^[0-9a-f]{7,40}$ ]] || { echo "Invalid image tag: $TAG"; exit 1; }
-          [[ -n "$DEPLOY_HOST" && -n "$DEPLOY_USER" && -n "$DEPLOY_PATH" && -n "$DOMAIN" ]] || { echo "Missing secrets/variables"; exit 1; }
+          missing=""
+          [ -n "$DEPLOY_HOST" ] || missing="$missing DEPLOY_HOST"
+          [ -n "$DEPLOY_USER" ] || missing="$missing DEPLOY_USER"
+          [ -n "$DEPLOY_PATH" ] || missing="$missing DEPLOY_PATH"
+          [ -n "$DOMAIN" ] || missing="$missing DOMAIN"
+          [ "$HAS_SSH_KEY" = "true" ] || missing="$missing SSH_PRIVATE_KEY"
+          [ "$HAS_KNOWN_HOSTS" = "true" ] || missing="$missing SSH_KNOWN_HOSTS"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing (not visible to this job):$missing"
+            echo "Create them in Settings > Environments > production (or Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
       - name: Set up SSH
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
