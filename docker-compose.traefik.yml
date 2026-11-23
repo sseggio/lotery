@@ -8,7 +8,8 @@
 services:
   lotery:
     build: .
-    image: lotery:latest
+    # GitLab CI/CD sets LOTERY_IMAGE to the registry image; a manual deploy builds locally.
+    image: ${LOTERY_IMAGE:-lotery:latest}
     container_name: lotery
     restart: unless-stopped
     env_file:
