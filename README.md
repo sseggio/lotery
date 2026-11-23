@@ -66,15 +66,15 @@ docker compose -f docker-compose.traefik.yml up -d --build
 
 No port is opened on the host. Traefik handles HTTPS like it does for the other sites.
 
-## GitLab CI/CD
+## CI/CD (GitHub Actions)
 
-`.gitlab-ci.yml` chains the following jobs:
-- **tests** (pytest, frontend build, npm audit);
-- **Docker image** pushed to the GitLab registry (tagged with the commit SHA and `latest`);
+`.github/workflows/deploy.yml` chains the following jobs:
+- **tests** (pytest, frontend build, npm audit), on every pull request and on `main`;
+- **Docker image** pushed to `ghcr.io/<owner>/lotery` (tagged with the commit SHA and `latest`);
 - **SSH deployment** on the VPS (`docker compose pull && up -d`), followed by a public health check.
 
-Deployment only runs on the default branch. The required CI/CD variables are listed at the top of the file.
-The `.env` file (secrets) stays on the server. To roll back, re-run the `deploy:production` job of an earlier pipeline.
+Deployment runs on every push to `main`. The required secrets and variables are listed at the top of the file.
+The `.env` file stays on the server. To roll back: Actions → CI/CD → *Run workflow*, with the short SHA of an earlier commit.
 
 ## Local development
 
